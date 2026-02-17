@@ -6,6 +6,7 @@ import com.addverb.outbound_service.enums.OrderStatus;
 import com.addverb.outbound_service.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -38,14 +39,16 @@ public class OrderController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false)OrderStatus status,
             @RequestParam(required = false) String skuCode,
-            @RequestParam(required = false) String fromDate,
-            @RequestParam(required = false) String toDate
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime toDate
             ) {
 
-        LocalDateTime from = fromDate != null ? LocalDateTime.parse(fromDate) : null;
-        LocalDateTime to = toDate != null ? LocalDateTime.parse(toDate) : null;
+//        LocalDateTime from = fromDate != null ? LocalDateTime.parse(fromDate) : null;
+//        LocalDateTime to = toDate != null ? LocalDateTime.parse(toDate) : null;
+//
+//        PagedResponse<OrderResponse> response = orderService.getOrders(page, size, status, skuCode, from, to);
 
-        PagedResponse<OrderResponse> response = orderService.getOrders(page, size, status, skuCode, from, to);
+        PagedResponse<OrderResponse> response = orderService.getOrders(page, size, status, skuCode, fromDate, toDate);
 
         return ResponseEntity.ok(
                 ApiResponse.<PagedResponse<OrderResponse>>builder()
@@ -117,6 +120,8 @@ public class OrderController {
     }
 
 }
+
+
 
 
 

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 
@@ -24,26 +25,55 @@ public class InventoryClient {
                 .bodyToMono(InventoryBatchResponse[].class)
                 .block();
 
-        return Arrays.asList(response);
+        return response == null ? Collections.emptyList() : Arrays.asList(response);
     }
 
-    public void deductInventory(String skuCode, String batchNo, Integer quantity) {
+//    public void deductInventory(String skuCode, String batchNo, Integer quantity) {
+//
+//        InventoryDeductRequest request = InventoryDeductRequest.builder()
+//                .skuCode(skuCode)
+//                .batchNo(batchNo)
+//                .quantity(quantity)
+//                .build();
+//
+//        webClient.post()
+//                .uri(INVENTORY_BASE_URL + "/deduct")
+//                .bodyValue(request)
+//                .retrieve()
+//                .onStatus(status -> status.isError(),
+//                        response -> response.bodyToMono(String.class)
+//                                .map(error -> new BusinessException(
+//                                        "Inventory Deduction Failed for Batch" + batchNo + ": " + error
+//                                )))
+//                .toBodilessEntity()
+//                .block();
+//    }
 
-        InventoryDeductRequest request = InventoryDeductRequest.builder()
+    public void deductInventoryBulk(
+            String orderNumber,
+            String skuCode,
+            Integer requestedQty,
+            Integer alreadyAllocatedQty,
+            List<InventoryDeductRequest> allocations
+    ) {
+
+        InventoryBulkDeductRequest request = InventoryBulkDeductRequest.builder()
+                .orderNumber(orderNumber)
                 .skuCode(skuCode)
-                .batchNo(batchNo)
-                .quantity(quantity)
+                .requestedQty(requestedQty)
+                .alreadyAllocatedQty(alreadyAllocatedQty)
+                .allocations(allocations)
                 .build();
 
         webClient.post()
-                .uri(INVENTORY_BASE_URL + "/deduct")
+                .uri(INVENTORY_BASE_URL + "/deduct/bulk")
                 .bodyValue(request)
                 .retrieve()
-                .onStatus(status -> status.isError(),
+                .onStatus(
+                        status -> status.isError(),
                         response -> response.bodyToMono(String.class)
-                                .map(error -> new BusinessException(
-                                        "Inventory Deduction Failed for Batch" + batchNo + ": " + error
-                                )))
+                                .map(error -> new BusinessException("Inventory bulk deduction failed: " + error))
+                )
                 .toBodilessEntity()
                 .block();
     }

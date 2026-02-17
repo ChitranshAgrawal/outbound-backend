@@ -9,6 +9,7 @@ import com.addverb.outbound_service.exception.BusinessException;
 import com.addverb.outbound_service.exception.OrderNotFoundException;
 import com.addverb.outbound_service.inventory.InventoryBatchResponse;
 import com.addverb.outbound_service.inventory.InventoryClient;
+import com.addverb.outbound_service.inventory.InventoryDeductRequest;
 import com.addverb.outbound_service.repository.OrderAllocationRepository;
 import com.addverb.outbound_service.repository.OrderRepository;
 import com.addverb.outbound_service.specification.OrderSpecification;
@@ -19,8 +20,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -87,7 +90,13 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private String generateOrderNumber() {
-        return "ORD-" + UUID.randomUUID().toString().substring(0, 8);
+//        return "ORD-" + UUID.randomUUID().toString().substring(0, 8);
+        String orderNumber;
+        do {
+            orderNumber = "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        } while (orderRepository.findByOrderNumber(orderNumber).isPresent());
+
+        return orderNumber;
     }
 
     private OrderResponse mapToResponse(Order order) {
@@ -121,8 +130,11 @@ public class OrderServiceImpl implements OrderService {
         List<InventoryBatchResponse> batches = inventoryClient.getBatchesBySku(order.getSkuCode());
 
         List<InventoryBatchResponse> validBatches = batches.stream()
-                .filter(batch -> batch.getExpiryDate().isAfter(java.time.LocalDate.now()))
-                .sorted((b1, b2) -> b1.getExpiryDate().compareTo(b2.getExpiryDate()))
+                .filter(Objects::nonNull)
+                .filter(batch -> batch.getBatchNo() != null && !batch.getBatchNo().isBlank())
+                .filter(batch -> batch.getExpiryDate() != null && batch.getExpiryDate().isAfter(java.time.LocalDate.now()))
+                .filter(batch -> batch.getAvailableQty() != null && batch.getAvailableQty() > 0)
+                .sorted(Comparator.comparing(InventoryBatchResponse::getExpiryDate))
                 .toList();
 
         if (validBatches.isEmpty())
@@ -160,14 +172,31 @@ public class OrderServiceImpl implements OrderService {
         if (totalAllocatedNow == 0)
             throw new AllocationException("Insufficient stock for allocation");
 
-        for (BatchAllocationDetail detail : allocationDetails) {
+//        for (BatchAllocationDetail detail : allocationDetails) {
+//
+//            inventoryClient.deductInventory(
+//                    order.getSkuCode(),
+//                    detail.getBatchNo(),
+//                    detail.getAllocatedQty()
+//            );
+//        }
 
-            inventoryClient.deductInventory(
-                    order.getSkuCode(),
-                    detail.getBatchNo(),
-                    detail.getAllocatedQty()
-            );
-        }
+        List<InventoryDeductRequest> deductRequests = allocationDetails.stream()
+                .map(detail -> InventoryDeductRequest.builder()
+                        .skuCode(order.getSkuCode())
+                        .batchNo(detail.getBatchNo())
+                        .quantity(detail.getAllocatedQty())
+                        .build()
+                )
+                .toList();
+
+        inventoryClient.deductInventoryBulk(
+                order.getOrderNumber(),
+                order.getSkuCode(),
+                order.getRequestedQty(),
+                order.getAllocatedQty(),
+                deductRequests
+        );
 
         for (BatchAllocationDetail detail : allocationDetails) {
 
@@ -309,6 +338,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
 }
+
 
 
 
