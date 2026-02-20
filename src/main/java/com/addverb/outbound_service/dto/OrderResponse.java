@@ -15,6 +15,7 @@ public class OrderResponse {
     private String customerName;
     private String address;
     private String skuCode;
+    private Double mrp;
     private Integer requestedQty;
     private Integer allocatedQty;
     private OrderStatus status;

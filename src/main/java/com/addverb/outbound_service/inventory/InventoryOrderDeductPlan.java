@@ -5,17 +5,16 @@ import lombok.Data;
 
 import java.util.List;
 
-
 @Data
 @Builder
-public class InventoryBulkDeductRequest {
-
+public class InventoryOrderDeductPlan {
 //    private String orderNumber;
-    private String sku;
+    private String skuCode;
     private Double mrp;
-    private String operation;
 //    private Integer requestedQty;
 //    private Integer alreadyAllocatedQty;
-    private List<InventoryDeductRequest> batches;
+    private List<InventoryDeductRequest> allocations;
 }
+
+
 

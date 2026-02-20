@@ -33,6 +33,9 @@ public class Order {
     @Column(name = "sku_code", nullable = false)
     private String skuCode;
 
+    @Column(name = "mrp", nullable = false)
+    private Double mrp;
+
     @Column(name = "requested_qty", nullable = false)
     private Integer requestedQty;
 

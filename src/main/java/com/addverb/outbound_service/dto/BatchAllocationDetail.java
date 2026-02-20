@@ -13,6 +13,7 @@ public class BatchAllocationDetail {
     private LocalDate expiryDate;
     private Double mrp;
     private Integer allocatedQty;
+    private Integer quantity;
 }
 
 

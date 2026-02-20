@@ -19,23 +19,23 @@ public class OrderAllocation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "sku_code", nullable = false)
+    @Column(name = "sku_code")
     private String skuCode;
 
-    @Column(name = "batch_no", nullable = false)
+    @Column(name = "batch_no")
     private String batchNo;
 
-    @Column(name = "expiry_date", nullable = false)
+    @Column(name = "expiry_date")
     private LocalDate expiryDate;
 
-    @Column(nullable = false)
+    @Column()
     private Double mrp;
 
-    @Column(name = "allocated_qty", nullable = false)
+    @Column(name = "allocated_qty")
     private Integer allocatedQty;
 
     @ManyToOne
-    @JoinColumn(name = "order_id", nullable = false)
+    @JoinColumn(name = "order_id")
     private Order order;
 
 }

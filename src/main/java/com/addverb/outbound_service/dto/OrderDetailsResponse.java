@@ -10,12 +10,13 @@ import java.util.List;
 
 @Data
 @Builder
-public class OrderDetailsResponse {
+public class  OrderDetailsResponse {
 
     private Long id;
     private String orderNumber;
 
     private String skuCode;
+    private Double mrp;
 
     private String customerName;
     private String address;
@@ -30,5 +31,4 @@ public class OrderDetailsResponse {
     private List<OrderAllocationResponse> allocations;
 
 }
-
 

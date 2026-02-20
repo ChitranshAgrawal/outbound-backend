@@ -10,9 +10,9 @@ public class InventoryBatchResponse {
     private String batchNo;
     private LocalDate expiryDate;
     private Double mrp;
-    private Integer availableQty;
+    private Integer quantity;
+//    private String sku;
 }
-
 
 
 

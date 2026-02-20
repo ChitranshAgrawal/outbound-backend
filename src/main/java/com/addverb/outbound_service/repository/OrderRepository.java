@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,6 +17,8 @@ import java.util.Optional;
 public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecificationExecutor<Order> {
 
     Optional<Order> findByOrderNumber(String orderNumber);
+
+    List<Order> findByOrderNumberIn(List<String> orderNumbers);
 
     @Override
     Page<Order> findAll(Pageable pageable);
@@ -34,25 +37,24 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     List<Object[]> getStatusDistribution();
 
     @Query("""
-    SELECT DATE(o.createdAt), COUNT(o)
+    SELECT o.createdAt, COUNT(o)
     FROM Order o
     WHERE o.createdAt >= :startDate
-    GROUP BY DATE(o.createdAt)
-    ORDER BY DATE(o.createdAt)
+    GROUP BY o.createdAt
+    ORDER BY o.createdAt
     """)
-    List<Object[]> getDailyOrders(LocalDateTime startDate);
+    List<Object[]> getDailyOrders(@Param("startDate") LocalDateTime startDate);
 
     @Query("""
-    SELECT DATE(o.createdAt), SUM(o.allocatedQty)
+    SELECT o.createdAt, SUM(o.allocatedQty)
     FROM Order o
     WHERE o.createdAt >= :startDate
-    GROUP BY DATE(o.createdAt)
-    ORDER BY DATE(o.createdAt)
+    GROUP BY o.createdAt
+    ORDER BY o.createdAt
     """)
-    List<Object[]> getDailyAllocation(LocalDateTime startDate);
+    List<Object[]> getDailyAllocation(@Param("startDate") LocalDateTime startDate);
 
 }
-
 
 
 

@@ -4,6 +4,7 @@ import com.addverb.outbound_service.dto.*;
 import com.addverb.outbound_service.enums.OrderStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 
 public interface OrderService {
@@ -19,6 +20,8 @@ public interface OrderService {
     );
 
     AllocationResponse allocateOrder(String orderNumber);
+
+    BulkAllocationResponse allocateOrdersBulk(List<String> orderNumbers);
 
     DashboardSummaryResponse getDashboardSummary();
 

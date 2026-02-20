@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:4200")
 public class OrderController {
 
     private final OrderService orderService;
@@ -68,6 +69,22 @@ public class OrderController {
                 ApiResponse.<AllocationResponse>builder()
                         .success(true)
                         .message("Allocation Completed Successfully")
+                        .data(response)
+                        .build()
+        );
+    }
+
+    @PostMapping("/allocate/bulk")
+    public ResponseEntity<ApiResponse<BulkAllocationResponse>> allocateOrdersBulk(
+            @Valid @RequestBody BulkAllocateOrdersRequest request) {
+
+        BulkAllocationResponse response =
+                orderService.allocateOrdersBulk(request.getOrderNumbers());
+
+        return ResponseEntity.ok(
+                ApiResponse.<BulkAllocationResponse>builder()
+                        .success(true)
+                        .message("Bulk allocation processed")
                         .data(response)
                         .build()
         );
