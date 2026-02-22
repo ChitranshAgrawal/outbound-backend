@@ -5,6 +5,8 @@ import com.addverb.outbound_service.dto.*;
 import com.addverb.outbound_service.enums.OrderStatus;
 import com.addverb.outbound_service.service.OrderService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -36,8 +38,8 @@ public class OrderController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<PagedResponse<OrderResponse>>> getOrders(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "Page must be 0 or greater") int page,
+            @RequestParam(defaultValue = "10") @Min(value = 1, message = "Size must be at least 1") @Max(value = 200, message = "Size must be at most 200") int size,
             @RequestParam(required = false)OrderStatus status,
             @RequestParam(required = false) String skuCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDate,

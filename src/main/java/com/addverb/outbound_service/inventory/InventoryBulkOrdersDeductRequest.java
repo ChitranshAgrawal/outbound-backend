@@ -9,7 +9,7 @@ import java.util.List;
 @Builder
 public class InventoryBulkOrdersDeductRequest {
     private String operation;
-    private List<InventoryOrderDeductPlan> orders;
+    private List<InventoryDeductRequest> items;
 }
 
 

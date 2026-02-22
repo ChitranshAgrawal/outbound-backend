@@ -9,7 +9,8 @@ import lombok.Data;
 public class InventoryDeductRequest {
 //    private String skuCode;
     private String batchNo;
-    private Integer quantity;
-//    private Double mrp;
+    private String sku;
+    private Integer qty;
+    private Double mrp;
 }
 

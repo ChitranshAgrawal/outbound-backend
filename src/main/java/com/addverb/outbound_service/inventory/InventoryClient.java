@@ -1,9 +1,12 @@
 package com.addverb.outbound_service.inventory;
 
 import com.addverb.outbound_service.exception.BusinessException;
+import com.addverb.outbound_service.exception.InventoryServiceException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientException;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -14,6 +17,7 @@ import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class InventoryClient {
 
     private final WebClient webClient;
@@ -72,6 +76,8 @@ public class InventoryClient {
             return Collections.emptyMap();
         }
 
+        System.out.println(queries);
+
         List<InventorySkuMrpRequest> bulkQueries = queries.stream()
                 .map(query -> InventorySkuMrpRequest.builder()
                     .sku(query.skuCode)
@@ -79,27 +85,39 @@ public class InventoryClient {
                     .build())
                 .toList();
 
-        InventoryBatchesBulkRequest request = InventoryBatchesBulkRequest.builder()
-                .queries(bulkQueries)
-                .build();
+        System.out.println(bulkQueries);
 
-        InventoryBatchesBySkuMrpResponse[] response = webClient.post()
-                .uri(INVENTORY_BASE_URL + "/available")
-                .bodyValue(request)
-                .retrieve()
-                .bodyToMono(InventoryBatchesBySkuMrpResponse[].class)
-                .block();
+        System.out.println(InventoryBatchesBySkuMrpResponse.class);
 
-        if (response == null)
-            return Collections.emptyMap();
+        try {
+            log.info("InventoryClient.getBatchesBySkuAndMrpBulk: " + bulkQueries);
+            InventoryBatchesBySkuMrpResponse[] response = webClient.post()
+                    .uri(INVENTORY_BASE_URL + "/available")
+                    .bodyValue(bulkQueries)
+                    .retrieve()
+                    .onStatus(
+                            status -> status.isError(),
+                            error -> error.bodyToMono(String.class)
+                                    .map(body -> new InventoryServiceException("Inventory fetch failed: " + body))
+                    )
+                    .bodyToMono(InventoryBatchesBySkuMrpResponse[].class)
+                    .block();
 
-        return Arrays.stream(response)
-                .filter(item -> item != null && item.getSku() != null && item.getMrp() != null)
-                .collect(Collectors.toMap(
-                        item -> buildKey(item.getSku(), item.getMrp()),
-                        item -> item.getBatches() != null ? item.getBatches() : Collections.emptyList(),
-                        (existing, ignored) -> existing
-                ));
+            if (response == null)
+                return Collections.emptyMap();
+
+            System.out.println(response);
+
+            return Arrays.stream(response)
+                    .filter(item -> item != null && item.getSku() != null && item.getMrp() != null)
+                    .collect(Collectors.toMap(
+                            item -> buildKey(item.getSku(), item.getMrp()),
+                            item -> item.getBatches() != null ? item.getBatches() : Collections.emptyList(),
+                            (existing, ignored) -> existing
+                    ));
+        } catch (WebClientException ex) {
+            throw new InventoryServiceException("Inventory service request failed: " + ex.getMessage());
+        }
     }
 
     public void deductInventoryBulk(
@@ -109,7 +127,7 @@ public class InventoryClient {
 ////            Integer requestedQty,
 ////            Integer alreadyAllocatedQty,
 //            List<InventoryDeductRequest> batches
-            List<InventoryOrderDeductPlan> orders
+            List<InventoryDeductRequest> items
     ) {
 
         InventoryBulkOrdersDeductRequest request = InventoryBulkOrdersDeductRequest.builder()
@@ -120,21 +138,25 @@ public class InventoryClient {
 ////                .requestedQty(requestedQty)
 ////                .alreadyAllocatedQty(alreadyAllocatedQty)
 //                .batches(batches)
-                .orders(orders)
+                .items(items)
                 .operation("DEDUCT")
                 .build();
 
-        webClient.post()
-                .uri(INVENTORY_BASE_URL + "/save")
-                .bodyValue(request)
-                .retrieve()
-                .onStatus(
-                        status -> status.isError(),
-                        response -> response.bodyToMono(String.class)
-                                .map(error -> new BusinessException("Inventory bulk deduction failed: " + error))
-                )
-                .toBodilessEntity()
-                .block();
+        try {
+            webClient.post()
+                    .uri(INVENTORY_BASE_URL + "/save")
+                    .bodyValue(request)
+                    .retrieve()
+                    .onStatus(
+                            status -> status.isError(),
+                            response -> response.bodyToMono(String.class)
+                                    .map(error -> new InventoryServiceException("Inventory bulk deduction failed: " + error))
+                    )
+                    .toBodilessEntity()
+                    .block();
+        } catch (WebClientException ex) {
+            throw new InventoryServiceException("Inventory service request failed: " + ex.getMessage());
+        }
     }
 
     public record OrderInventoryQuery(String skuCode, Double mrp) {}
@@ -144,8 +166,6 @@ public class InventoryClient {
     }
 
 }
-
-
 
 
 

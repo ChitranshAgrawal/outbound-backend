@@ -6,6 +6,7 @@ import com.addverb.outbound_service.entity.OrderAllocation;
 import com.addverb.outbound_service.enums.OrderStatus;
 import com.addverb.outbound_service.exception.AllocationException;
 import com.addverb.outbound_service.exception.BusinessException;
+import com.addverb.outbound_service.exception.InventoryServiceException;
 import com.addverb.outbound_service.exception.OrderNotFoundException;
 import com.addverb.outbound_service.inventory.InventoryBatchResponse;
 import com.addverb.outbound_service.inventory.InventoryClient;
@@ -70,6 +71,9 @@ public class OrderServiceImpl implements OrderService {
             LocalDateTime toDate
     ) {
 
+        if ( fromDate != null && toDate != null && fromDate.isAfter(toDate) )
+            throw new BusinessException("From Date must be less than To Date");
+
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Specification<Order> spec = Specification
                 .where(OrderSpecification.hasStatus(status))
@@ -124,6 +128,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional
     public BulkAllocationResponse allocateOrdersBulk(List<String> orderNumbers) {
 
         if (orderNumbers == null || orderNumbers.isEmpty()) {
@@ -163,7 +168,7 @@ public class OrderServiceImpl implements OrderService {
                     .build();
         }
 
-        List<Order> existingOrders = orderRepository.findByOrderNumberIn(new java.util.ArrayList<>(normalizedOrderNumbers));
+        List<Order> existingOrders = orderRepository.findByOrderNumberInForUpdate(new java.util.ArrayList<>(normalizedOrderNumbers));
 
         Map<String, Order> orderMap = existingOrders.stream()
                 .collect(Collectors.toMap(Order::getOrderNumber, order -> order));
@@ -221,8 +226,28 @@ public class OrderServiceImpl implements OrderService {
                 .map(order -> new InventoryClient.OrderInventoryQuery(order.getSkuCode(), order.getMrp()))
                 .toList();
 
-        Map<String, List<InventoryBatchResponse>> inventoryBySkuMrp =
-                inventoryClient.getBatchesBySkuAndMrpBulk(queries);
+        Map<String, List<InventoryBatchResponse>> inventoryBySkuMrp;
+        try {
+            inventoryBySkuMrp = inventoryClient.getBatchesBySkuAndMrpBulk(queries);
+        } catch (InventoryServiceException ex) {
+            for (Order order : allocatableOrders) {
+                results.add(BulkOrderAllocationResult.builder()
+                        .orderNumber(order.getOrderNumber())
+                        .success(false)
+                        .message("Allocation failed for order " + order.getOrderNumber() + ": " + ex.getMessage())
+                        .build());
+            }
+
+            int successCount = (int) results.stream().filter(BulkOrderAllocationResult::isSuccess).count();
+            int failureCount = results.size() - successCount;
+            return BulkAllocationResponse.builder()
+                    .totalOrders(results.size())
+                    .successCount(successCount)
+                    .failureCount(failureCount)
+                    .results(results)
+                    .build();
+
+        }
 
         Map<String, Integer> availableByBatchKey = new HashMap<>();
 
@@ -299,9 +324,10 @@ public class OrderServiceImpl implements OrderService {
             List<InventoryDeductRequest> deductRequests =
                     allocationDetails.stream()
                             .map(detail -> InventoryDeductRequest.builder()
-//                                    .sku(order.getSkuCode())
+                                    .sku(order.getSkuCode())
+                                    .mrp(order.getMrp())
                                     .batchNo(detail.getBatchNo())
-                                    .quantity(detail.getAllocatedQty())
+                                    .qty(detail.getAllocatedQty())
                                     .build())
                             .toList();
 
@@ -319,20 +345,24 @@ public class OrderServiceImpl implements OrderService {
                     .build();
         }
 
-        List<InventoryOrderDeductPlan> deductPlans = successfulPlans.stream()
-                .map(plan -> InventoryOrderDeductPlan.builder()
-//                        .orderNumber(plan.order().getOrderNumber())
-                        .skuCode(plan.order().getSkuCode())
-                        .mrp(plan.order().getMrp())
-//                        .requestedQty(plan.order().getRequestedQty())
-//                        .alreadyAllocatedQty(plan.order().getAllocatedQty())
-                        .allocations(plan.deductRequests())
-                        .build())
+//        List<InventoryOrderDeductPlan> deductPlans = successfulPlans.stream()
+//                .map(plan -> InventoryOrderDeductPlan.builder()
+////                        .orderNumber(plan.order().getOrderNumber())
+//                        .skuCode(plan.order().getSkuCode())
+//                        .mrp(plan.order().getMrp())
+////                        .requestedQty(plan.order().getRequestedQty())
+////                        .alreadyAllocatedQty(plan.order().getAllocatedQty())
+//                        .allocations(plan.deductRequests())
+//                        .build())
+//                .toList();
+
+        List<InventoryDeductRequest> deductAllocations = successfulPlans.stream()
+                .flatMap(plan -> plan.deductRequests().stream())
                 .toList();
 
         try {
-            inventoryClient.deductInventoryBulk(deductPlans);
-        } catch (Exception ex) {
+            inventoryClient.deductInventoryBulk(deductAllocations);
+        } catch (InventoryServiceException ex) {
             for (OrderAllocationPlan plan : successfulPlans) {
                 results.add(BulkOrderAllocationResult.builder()
                         .orderNumber(plan.order().getOrderNumber())
@@ -394,7 +424,14 @@ public class OrderServiceImpl implements OrderService {
         if (remainingQty <= 0)
             throw new AllocationException("Order already fully allocated");
 
-        List<InventoryBatchResponse> batches = inventoryClient.getBatchesBySkuAndMrp(order.getSkuCode(), order.getMrp());
+//        List<InventoryBatchResponse> batches = inventoryClient.getBatchesBySkuAndMrp(order.getSkuCode(), order.getMrp());
+
+        List<InventoryBatchResponse> batches;
+        try {
+            batches = inventoryClient.getBatchesBySkuAndMrp(order.getSkuCode(), order.getMrp());
+        } catch (InventoryServiceException ex) {
+            throw new AllocationException(ex.getMessage());
+        }
 
         List<InventoryBatchResponse> validBatches = batches.stream()
 //                .filter(Objects::nonNull)
@@ -452,28 +489,36 @@ public class OrderServiceImpl implements OrderService {
         List<InventoryDeductRequest> deductRequests = allocationDetails.stream()
                 .map(detail -> InventoryDeductRequest.builder()
 //                        .skuCode(order.getSkuCode())
+                                .sku(order.getSkuCode())
+                                .mrp(order.getMrp())
                                 .batchNo(detail.getBatchNo())
 //                        .mrp(order.getMrp())
-                                .quantity(detail.getQuantity())
+                                .qty(detail.getQuantity())
                                 .build()
                 )
                 .toList();
 
-        inventoryClient.deductInventoryBulk(
-                List.of(
-                        InventoryOrderDeductPlan.builder()
-                                .skuCode(order.getSkuCode())
-                                .mrp((order.getMrp()))
-                                .allocations(deductRequests)
-                                .build()
-                )
-////                order.getOrderNumber(),
-//                order.getSkuCode(),
-//                order.getMrp(),
-////                order.getRequestedQty(),
-////                order.getAllocatedQty(),
-//                deductRequests
-        );
+//        inventoryClient.deductInventoryBulk(
+//                List.of(
+//                        InventoryOrderDeductPlan.builder()
+//                                .skuCode(order.getSkuCode())
+//                                .mrp((order.getMrp()))
+//                                .allocations(deductRequests)
+//                                .build()
+//                )
+//////                order.getOrderNumber(),
+////                order.getSkuCode(),
+////                order.getMrp(),
+//////                order.getRequestedQty(),
+//////                order.getAllocatedQty(),
+////                deductRequests
+//        );
+
+        try {
+            inventoryClient.deductInventoryBulk(deductRequests);
+        } catch (InventoryServiceException ex) {
+            throw new AllocationException(ex.getMessage());
+        }
 
         for (BatchAllocationDetail detail : allocationDetails) {
 

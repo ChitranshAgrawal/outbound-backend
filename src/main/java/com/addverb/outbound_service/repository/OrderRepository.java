@@ -2,10 +2,12 @@ package com.addverb.outbound_service.repository;
 
 import com.addverb.outbound_service.entity.Order;
 import com.addverb.outbound_service.enums.OrderStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -18,7 +20,11 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     Optional<Order> findByOrderNumber(String orderNumber);
 
-    List<Order> findByOrderNumberIn(List<String> orderNumbers);
+//    List<Order> findByOrderNumberIn(List<String> orderNumbers);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o WHERE o.orderNumber IN :orderNumbers")
+    List<Order> findByOrderNumberInForUpdate(@Param("orderNumbers") List<String> orderNumbers);
 
     @Override
     Page<Order> findAll(Pageable pageable);
