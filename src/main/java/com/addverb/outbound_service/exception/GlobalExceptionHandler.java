@@ -1,5 +1,6 @@
 package com.addverb.outbound_service.exception;
 
+import com.addverb.outbound_service.auth.exception.AuthException;
 import com.addverb.outbound_service.common.ApiResponse;
 import com.addverb.outbound_service.dto.ErrorResponse;
 import org.springframework.http.HttpStatus;
@@ -64,6 +65,17 @@ public class GlobalExceptionHandler {
                         .success(false)
                         .message(ex.getMessage())
                         .errorCode("ALLOCATION_ERROR")
+                        .timestamp(LocalDateTime.now())
+                        .build());
+    }
+
+    @ExceptionHandler(AuthException.class)
+    public ResponseEntity<ErrorResponse> handleAuthException(AuthException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(ErrorResponse.builder()
+                        .success(false)
+                        .message(ex.getMessage())
+                        .errorCode("AUTH_ERROR")
                         .timestamp(LocalDateTime.now())
                         .build());
     }
