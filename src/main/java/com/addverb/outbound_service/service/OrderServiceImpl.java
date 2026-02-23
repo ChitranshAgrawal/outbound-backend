@@ -3,6 +3,7 @@ package com.addverb.outbound_service.service;
 import com.addverb.outbound_service.dto.*;
 import com.addverb.outbound_service.entity.Order;
 import com.addverb.outbound_service.entity.OrderAllocation;
+import com.addverb.outbound_service.enums.OrderExportDateFilter;
 import com.addverb.outbound_service.enums.OrderStatus;
 import com.addverb.outbound_service.exception.AllocationException;
 import com.addverb.outbound_service.exception.BusinessException;
@@ -24,7 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,6 +42,7 @@ public class OrderServiceImpl implements OrderService {
     private final InventoryClient inventoryClient;
     private final OrderAllocationRepository allocationRepository;
     private final PlatformTransactionManager transactionManager;
+    private final OrderExcelExportService orderExcelExportService;
 
     @Override
     public OrderResponse createOrder(CreateOrderRequest request) {
@@ -327,7 +331,9 @@ public class OrderServiceImpl implements OrderService {
                                     .sku(order.getSkuCode())
                                     .mrp(order.getMrp())
                                     .batchNo(detail.getBatchNo())
-                                    .qty(detail.getAllocatedQty())
+                                    .quantity(detail.getAllocatedQty())
+                                    .status(null)
+                                    .expiryDate(null)
                                     .build())
                             .toList();
 
@@ -493,7 +499,9 @@ public class OrderServiceImpl implements OrderService {
                                 .mrp(order.getMrp())
                                 .batchNo(detail.getBatchNo())
 //                        .mrp(order.getMrp())
-                                .qty(detail.getQuantity())
+                                .quantity(detail.getQuantity())
+                                .expiryDate(null)
+                                .status(null)
                                 .build()
                 )
                 .toList();
@@ -732,11 +740,51 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] exportOrders(OrderExportDateFilter filter, LocalDate startDate, LocalDate endDate) {
+
+        OrderExportDateFilter effectiveFilter = filter != null ? filter : OrderExportDateFilter.ALL;
+
+        LocalDateTime fromDate = null;
+        LocalDateTime toDate = null;
+
+        switch (effectiveFilter) {
+            case ALL -> {
+            }
+            case TODAY -> {
+                LocalDate today = LocalDate.now();
+                fromDate = today.atStartOfDay();
+                toDate = today.atTime(LocalTime.MAX);
+            }
+            case DATE_RANGE -> {
+                if (startDate == null || endDate == null) {
+                    throw new BusinessException("startDate and endDate are required for DATE_RANGE filter");
+                }
+
+                if (startDate.isAfter(endDate)) {
+                    throw new BusinessException("startDate must be less than or equal to endDate");
+                }
+
+                fromDate = startDate.atStartOfDay();
+                toDate = endDate.atTime(LocalTime.MAX);
+            }
+            default -> throw new BusinessException("Unsupported export filter");
+        }
+
+        Sort sort = Sort.by(Sort.Direction.DESC, "createdAt");
+
+        List<Order> orders;
+        if (fromDate == null && toDate == null) {
+            orders = orderRepository.findAll(sort);
+        } else {
+            orders = orderRepository.findByCreatedAtBetween(fromDate, toDate, sort);
+        }
+
+        return orderExcelExportService.exportOrdersToExcel(orders);
+    }
+
 }
-
-
-
-
 
 
 

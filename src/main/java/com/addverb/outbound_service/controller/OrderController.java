@@ -2,6 +2,7 @@ package com.addverb.outbound_service.controller;
 
 import com.addverb.outbound_service.common.ApiResponse;
 import com.addverb.outbound_service.dto.*;
+import com.addverb.outbound_service.enums.OrderExportDateFilter;
 import com.addverb.outbound_service.enums.OrderStatus;
 import com.addverb.outbound_service.service.OrderService;
 import jakarta.validation.Valid;
@@ -9,9 +10,12 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 
@@ -135,6 +139,22 @@ public class OrderController {
                         .data(response)
                         .build()
         );
+    }
+
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportOrders(
+            @RequestParam(defaultValue = "ALL") OrderExportDateFilter filter,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+    ) {
+        byte[] fileContent = orderService.exportOrders(filter, startDate, endDate);
+
+        String fileName = "orders_export_" + java.time.LocalDate.now() + ".xlsx";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + fileName)
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(fileContent);
     }
 
 }
