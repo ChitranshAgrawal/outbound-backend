@@ -78,12 +78,32 @@ public class OrderServiceImpl implements OrderService {
         if ( fromDate != null && toDate != null && fromDate.isAfter(toDate) )
             throw new BusinessException("From Date must be less than To Date");
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+//        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Sort createdAtDesc = Sort.by("createdAt").descending();
+
         Specification<Order> spec = Specification
                 .where(OrderSpecification.hasStatus(status))
                 .and(OrderSpecification.hasSkuCode(skuCode))
                 .and(OrderSpecification.createdAfter(fromDate))
                 .and(OrderSpecification.createdBefore(toDate));
+
+        boolean unpagedRequest = size <= 0 || (page == 0 && size == 10);
+
+        if (unpagedRequest) {
+            List<OrderResponse> allContent = orderRepository.findAll(spec, createdAtDesc)
+                    .stream()
+                    .map(this::mapToResponse)
+                    .toList();
+
+            return PagedResponse.<OrderResponse>builder()
+                    .content(allContent)
+                    .currentPage(0)
+                    .totalPages(allContent.isEmpty() ? 0 : 1)
+                    .totalElements(allContent.size())
+                    .build();
+        }
+
+        Pageable pageable = PageRequest.of(page, size, createdAtDesc);
 
         Page<Order> orderPage = orderRepository.findAll(spec, pageable);
 

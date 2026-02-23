@@ -42,7 +42,7 @@ public class OrderController {
     @GetMapping
     public ResponseEntity<ApiResponse<PagedResponse<OrderResponse>>> getOrders(
             @RequestParam(defaultValue = "0") @Min(value = 0, message = "Page must be 0 or greater") int page,
-            @RequestParam(defaultValue = "10") @Min(value = 1, message = "Size must be at least 1") @Max(value = 200, message = "Size must be at most 200") int size,
+            @RequestParam(required = false) @Min(value = 1, message = "Size must be at least 1") @Max(value = 200, message = "Size must be at most 200") Integer size,
             @RequestParam(required = false)OrderStatus status,
             @RequestParam(required = false) String skuCode,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fromDate,
@@ -54,7 +54,8 @@ public class OrderController {
 //
 //        PagedResponse<OrderResponse> response = orderService.getOrders(page, size, status, skuCode, from, to);
 
-        PagedResponse<OrderResponse> response = orderService.getOrders(page, size, status, skuCode, fromDate, toDate);
+        int requestedSize = size == null ? -1 : size;
+        PagedResponse<OrderResponse> response = orderService.getOrders(page, requestedSize, status, skuCode, fromDate, toDate);
 
         return ResponseEntity.ok(
                 ApiResponse.<PagedResponse<OrderResponse>>builder()
@@ -158,10 +159,6 @@ public class OrderController {
     }
 
 }
-
-
-
-
 
 
 
